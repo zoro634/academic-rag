@@ -33,6 +33,8 @@ backend/uploads/
 # Node & Frontend
 node_modules/
 frontend/node_modules/
+.next/
+frontend/.next/
 frontend/dist/
 frontend/build/
 .npm

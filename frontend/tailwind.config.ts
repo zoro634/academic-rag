@@ -1,8 +1,10 @@
-/** @type {import('tailwindcss').Config} */
-export default {
+import type { Config } from "tailwindcss";
+
+const config: Config = {
   content: [
-    "./index.html",
-    "./src/**/*.{js,ts,jsx,tsx}",
+    "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
+    "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
+    "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
   ],
   theme: {
     extend: {
@@ -41,11 +43,13 @@ export default {
         }
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
-        mono: ['Fira Code', 'Courier New', 'monospace'],
-        serif: ['Merriweather', 'Georgia', 'serif'],
+        sans: ['var(--font-inter)', 'system-ui', '-apple-system', 'sans-serif'],
+        mono: ['var(--font-mono)', 'Courier New', 'monospace'],
+        serif: ['var(--font-serif)', 'Georgia', 'serif'],
       }
     },
   },
   plugins: [],
-}
+};
+
+export default config;

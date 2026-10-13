@@ -1,13 +1,17 @@
+'use client';
+
 import React, { useState, useEffect, useCallback } from 'react';
-import Navbar from './components/Navbar';
-import Sidebar from './components/Sidebar';
-import ChatArea from './components/ChatArea';
-import FileUploadModal from './components/FileUploadModal';
-import SettingsModal from './components/SettingsModal';
-import apiClient from './services/api';
+import Navbar from '@/components/Navbar';
+import Sidebar from '@/components/Sidebar';
+import ChatArea from '@/components/ChatArea';
+import FileUploadModal from '@/components/FileUploadModal';
+import SettingsModal from '@/components/SettingsModal';
+import apiClient from '@/lib/api';
+import { DocumentMetadata, ChatMessage } from '@/types';
 
 // Generate or restore session ID
-const getInitialSessionId = () => {
+const getInitialSessionId = (): string => {
+  if (typeof window === 'undefined') return 'session_default';
   const existing = localStorage.getItem('academic_rag_session_id');
   if (existing) return existing;
   const newId = `session_${Math.random().toString(36).substring(2, 9)}`;
@@ -15,28 +19,33 @@ const getInitialSessionId = () => {
   return newId;
 };
 
-export default function App() {
-  const [sessionId, setSessionId] = useState(getInitialSessionId);
-  const [documents, setDocuments] = useState([]);
-  const [selectedDocIds, setSelectedDocIds] = useState([]);
-  const [messages, setMessages] = useState([]);
-  const [loadingChat, setLoadingChat] = useState(false);
-  const [loadingDocuments, setLoadingDocuments] = useState(false);
-  const [serverStatus, setServerStatus] = useState('checking'); // 'checking' | 'ok' | 'error'
-  const [geminiConfigured, setGeminiConfigured] = useState(false);
-  const [sampleQuestions, setSampleQuestions] = useState([]);
+export default function Home() {
+  const [sessionId, setSessionId] = useState<string>('session_default');
+  const [documents, setDocuments] = useState<DocumentMetadata[]>([]);
+  const [selectedDocIds, setSelectedDocIds] = useState<string[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [loadingChat, setLoadingChat] = useState<boolean>(false);
+  const [loadingDocuments, setLoadingDocuments] = useState<boolean>(false);
+  const [serverStatus, setServerStatus] = useState<'checking' | 'ok' | 'error'>('checking');
+  const [geminiConfigured, setGeminiConfigured] = useState<boolean>(false);
+  const [sampleQuestions, setSampleQuestions] = useState<string[]>([]);
 
-  // Modals and layout state
-  const [uploadModalOpen, setUploadModalOpen] = useState(false);
-  const [settingsModalOpen, setSettingsModalOpen] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  // Modals & layout
+  const [uploadModalOpen, setUploadModalOpen] = useState<boolean>(false);
+  const [settingsModalOpen, setSettingsModalOpen] = useState<boolean>(false);
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(false);
+
+  // Initialize session ID on client
+  useEffect(() => {
+    setSessionId(getInitialSessionId());
+  }, []);
 
   // Check health and server readiness
   const checkHealth = useCallback(async () => {
     try {
       const data = await apiClient.checkHealth();
       setServerStatus('ok');
-      const hasLocalKey = !!localStorage.getItem('academic_rag_gemini_key');
+      const hasLocalKey = typeof window !== 'undefined' && !!localStorage.getItem('academic_rag_api_key');
       setGeminiConfigured(data.gemini_configured || hasLocalKey);
     } catch (err) {
       console.warn('Backend server connection check failed:', err);
@@ -45,17 +54,17 @@ export default function App() {
   }, []);
 
   // Fetch documents for the current session
-  const fetchDocuments = useCallback(async (currentSession) => {
+  const fetchDocuments = useCallback(async (currentSession: string) => {
     setLoadingDocuments(true);
     try {
-      const res = await apiClient.listDocuments(currentSession || sessionId);
+      const res = await apiClient.listDocuments(currentSession);
       setDocuments(res.documents || []);
     } catch (err) {
       console.error('Failed to fetch documents for session:', err);
     } finally {
       setLoadingDocuments(false);
     }
-  }, [sessionId]);
+  }, []);
 
   // Fetch sample questions
   const fetchSampleQuestions = useCallback(async () => {
@@ -67,21 +76,24 @@ export default function App() {
     }
   }, []);
 
-  // Initial load
+  // Initial load and periodic health polling
   useEffect(() => {
-    checkHealth();
-    fetchDocuments(sessionId);
-    fetchSampleQuestions();
+    if (sessionId) {
+      checkHealth();
+      fetchDocuments(sessionId);
+      fetchSampleQuestions();
 
-    // Periodic health check
-    const interval = setInterval(checkHealth, 30000);
-    return () => clearInterval(interval);
+      const interval = setInterval(checkHealth, 30000);
+      return () => clearInterval(interval);
+    }
   }, [sessionId, checkHealth, fetchDocuments, fetchSampleQuestions]);
 
   // Handle creating a new isolated session
   const handleNewSession = () => {
     const newId = `session_${Math.random().toString(36).substring(2, 9)}`;
-    localStorage.setItem('academic_rag_session_id', newId);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('academic_rag_session_id', newId);
+    }
     setSessionId(newId);
     setDocuments([]);
     setSelectedDocIds([]);
@@ -90,7 +102,7 @@ export default function App() {
   };
 
   // Toggle document selection for scoped queries
-  const handleToggleSelectDoc = (docId) => {
+  const handleToggleSelectDoc = (docId: string) => {
     setSelectedDocIds((prev) => {
       if (prev.includes(docId)) {
         return prev.filter((id) => id !== docId);
@@ -105,7 +117,7 @@ export default function App() {
   };
 
   // Delete a document
-  const handleDeleteDoc = async (documentId, filename) => {
+  const handleDeleteDoc = async (documentId: string, filename: string) => {
     if (!window.confirm(`Are you sure you want to delete "${filename}" and its vector embeddings?`)) {
       return;
     }
@@ -114,20 +126,22 @@ export default function App() {
       await apiClient.deleteDocument(documentId, sessionId);
       setDocuments((prev) => prev.filter((d) => d.document_id !== documentId));
       setSelectedDocIds((prev) => prev.filter((id) => id !== documentId));
-    } catch (err) {
-      alert(`Failed to delete document: ${err.response?.data?.detail || err.message}`);
+    } catch (err: unknown) {
+      const errorMsg = (err as { response?: { data?: { detail?: string } }; message?: string })?.response?.data?.detail 
+        || (err as Error)?.message;
+      alert(`Failed to delete document: ${errorMsg}`);
     }
   };
 
   // Handle sending a question
-  const handleSendMessage = async (queryText) => {
+  const handleSendMessage = async (queryText: string) => {
     if (!queryText.trim()) return;
 
     const userMessageId = `user_${Date.now()}`;
     const now = new Date();
     const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-    const newUserMsg = {
+    const newUserMsg: ChatMessage = {
       id: userMessageId,
       role: 'user',
       content: queryText.trim(),
@@ -138,7 +152,7 @@ export default function App() {
     setLoadingChat(true);
 
     try {
-      const apiKeyOverride = localStorage.getItem('academic_rag_gemini_key') || null;
+      const apiKeyOverride = typeof window !== 'undefined' ? localStorage.getItem('academic_rag_api_key') : null;
       const response = await apiClient.askQuestion({
         query: queryText.trim(),
         sessionId,
@@ -146,7 +160,7 @@ export default function App() {
         apiKeyOverride,
       });
 
-      const assistantMsg = {
+      const assistantMsg: ChatMessage = {
         id: `assistant_${Date.now()}`,
         role: 'assistant',
         content: response.answer,
@@ -157,12 +171,16 @@ export default function App() {
       };
 
       setMessages((prev) => [...prev, assistantMsg]);
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('Q&A generation failed:', err);
-      const errorMsg = {
+      const errorDetail = (err as { response?: { data?: { detail?: string } }; message?: string })?.response?.data?.detail 
+        || (err as Error)?.message 
+        || 'Unable to retrieve answer from backend.';
+      
+      const errorMsg: ChatMessage = {
         id: `error_${Date.now()}`,
         role: 'assistant',
-        content: `**Error:** ${err.response?.data?.detail || err.message || 'Unable to retrieve answer from backend.'}\n\nPlease verify that the backend server is reachable and that your Gemini API key is configured.`,
+        content: `**Error:** ${errorDetail}\n\nPlease verify that the backend server is reachable.`,
         citations: [],
         isGrounded: false,
         modelUsed: 'error',
@@ -181,13 +199,14 @@ export default function App() {
     }
   };
 
-  // Load sample academic paper for rapid testing
-  const handleLoadSamplePaper = async () => {
-    setUploadModalOpen(true);
+  // Handle successful upload
+  const handleUploadSuccess = (newDoc: DocumentMetadata) => {
+    setDocuments((prev) => [newDoc, ...prev.filter((d) => d.document_id !== newDoc.document_id)]);
+    fetchDocuments(sessionId);
   };
 
   return (
-    <div className="flex flex-col h-screen bg-slate-950 text-slate-100 overflow-hidden font-sans">
+    <div className="flex flex-col min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-indigo-500 selection:text-white">
       {/* Top Navigation */}
       <Navbar
         serverStatus={serverStatus}
@@ -195,13 +214,13 @@ export default function App() {
         sessionId={sessionId}
         onNewSession={handleNewSession}
         onOpenSettings={() => setSettingsModalOpen(true)}
-        onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+        onToggleSidebar={() => setSidebarOpen((prev) => !prev)}
         sidebarOpen={sidebarOpen}
       />
 
-      {/* Main Layout: Sidebar + Chat Area */}
+      {/* Main Workspace */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left Document Management Sidebar */}
+        {/* Document Sidebar */}
         <Sidebar
           documents={documents}
           selectedDocIds={selectedDocIds}
@@ -209,42 +228,43 @@ export default function App() {
           onSelectAllDocs={handleSelectAllDocs}
           onDeleteDoc={handleDeleteDoc}
           onOpenUpload={() => setUploadModalOpen(true)}
-          onLoadSamplePaper={handleLoadSamplePaper}
           loadingDocuments={loadingDocuments}
           sidebarOpen={sidebarOpen}
           onCloseSidebar={() => setSidebarOpen(false)}
           sessionId={sessionId}
         />
 
-        {/* Right Q&A Chat Area */}
-        <ChatArea
-          messages={messages}
-          loading={loadingChat}
-          onSendMessage={handleSendMessage}
-          onClearChat={handleClearChat}
-          onOpenUpload={() => setUploadModalOpen(true)}
-          hasDocuments={documents.length > 0}
-          sampleQuestions={sampleQuestions}
-          selectedDocCount={selectedDocIds.length}
-          totalDocCount={documents.length}
-        />
+        {/* Chat Workspace */}
+        <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
+          <ChatArea
+            messages={messages}
+            loading={loadingChat}
+            onSendMessage={handleSendMessage}
+            onClearChat={handleClearChat}
+            onOpenUpload={() => setUploadModalOpen(true)}
+            hasDocuments={documents.length > 0}
+            sampleQuestions={sampleQuestions}
+            selectedDocCount={selectedDocIds.length}
+            totalDocCount={documents.length}
+          />
+        </main>
       </div>
 
-      {/* Modals */}
+      {/* Upload Modal */}
       <FileUploadModal
         isOpen={uploadModalOpen}
         onClose={() => setUploadModalOpen(false)}
         sessionId={sessionId}
-        onUploadSuccess={(newDoc) => {
-          fetchDocuments(sessionId);
-        }}
+        onUploadSuccess={handleUploadSuccess}
       />
 
+      {/* Settings Modal */}
       <SettingsModal
         isOpen={settingsModalOpen}
         onClose={() => setSettingsModalOpen(false)}
         onSettingsSaved={() => {
           checkHealth();
+          fetchDocuments(sessionId);
         }}
       />
     </div>

@@ -2,12 +2,12 @@ import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 
 from app.config import settings
 from app.models.schemas import HealthResponse
 from app.routers import documents, chat
-from app.services.vector_store import VectorStoreManager
+from app.services.vector_store import SupabaseVectorStore
+from app.services.supabase_client import check_supabase_health
 
 # Configure logging
 logging.basicConfig(
@@ -18,10 +18,9 @@ logger = logging.getLogger("academic_rag")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: initialize vector store
-    logger.info("Initializing Academic RAG System...")
-    VectorStoreManager.get_instance()
-    logger.info("Academic RAG System initialized and ready.")
+    logger.info("Initializing Academic RAG System (Supabase pgvector + Gemini)...")
+    store = SupabaseVectorStore.get_instance()
+    logger.info("Academic RAG System initialized.")
     yield
     logger.info("Academic RAG System shutting down.")
 
@@ -29,13 +28,13 @@ app = FastAPI(
     title=settings.PROJECT_TITLE,
     description=(
         "An intelligent question-answering framework powered by Retrieval-Augmented Generation (RAG), "
-        "allowing students to upload academic papers (PDF/DOCX) and receive grounded, cited answers."
+        "backed by Supabase PostgreSQL (pgvector), Supabase Storage, and Google Gemini 2.5 Flash."
     ),
     version=settings.VERSION,
     lifespan=lifespan
 )
 
-# Enable CORS for frontend web application
+# Enable CORS for frontend web application (Vercel & local)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -44,11 +43,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Mount Routers (both at root level per specification and with /api prefix for flexibility)
+# Mount Routers (both root level and /api prefix)
 app.include_router(documents.router)
 app.include_router(chat.router)
-
-# Also include with /api prefix
 app.include_router(documents.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
 
@@ -58,8 +55,12 @@ async def root():
         "title": settings.PROJECT_TITLE,
         "short_name": settings.PROJECT_SHORT_NAME,
         "version": settings.VERSION,
-        "description": "Online RAG-Based Intelligent Question Answering System for Academic Documents",
+        "description": "Supabase pgvector + Gemini Academic RAG Intelligent Question Answering Framework",
         "documentation": "/docs",
+        "vector_store": "Supabase PostgreSQL (pgvector)",
+        "storage": "Supabase Cloud Storage",
+        "llm": settings.GEMINI_MODEL,
+        "embedding": settings.EMBEDDING_MODEL,
         "endpoints": {
             "health": "/health",
             "upload_document": "POST /documents/upload",
@@ -74,18 +75,22 @@ async def root():
 @app.get("/api/health", response_model=HealthResponse, tags=["General"])
 async def health_check():
     """
-    Health check endpoint reporting backend readiness, Gemini configuration, and vector DB status.
+    Health check endpoint reporting backend readiness, Supabase connection,
+    and Gemini configuration.
     """
-    vector_store = VectorStoreManager.get_instance()
+    vector_store = SupabaseVectorStore.get_instance()
     total_docs = vector_store.get_total_documents_count()
+    sp_health = check_supabase_health()
 
     return HealthResponse(
         status="ok",
         version=settings.VERSION,
         project_title=settings.PROJECT_TITLE,
         gemini_configured=bool(settings.GEMINI_API_KEY and settings.GEMINI_API_KEY.strip()),
-        vector_db_status="connected",
-        active_documents_count=total_docs
+        vector_db_status="connected" if sp_health.get("connected") else "unconfigured_or_offline",
+        active_documents_count=total_docs,
+        supabase_configured=bool(settings.SUPABASE_URL and settings.SUPABASE_KEY),
+        storage_bucket=settings.SUPABASE_STORAGE_BUCKET
     )
 
 if __name__ == "__main__":

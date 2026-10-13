@@ -57,3 +57,5 @@ class HealthResponse(BaseModel):
     gemini_configured: bool
     vector_db_status: str
     active_documents_count: int
+    supabase_configured: bool = True
+    storage_bucket: str = "academic-documents"

@@ -1,16 +1,24 @@
+'use client';
+
 import React from 'react';
+import { motion } from 'framer-motion';
 import { 
   GraduationCap, 
   Settings, 
-  Server, 
   Cpu, 
-  CheckCircle2, 
-  AlertCircle, 
-  RefreshCw,
   PlusCircle,
   Menu,
-  Sparkles
 } from 'lucide-react';
+
+interface NavbarProps {
+  serverStatus: 'checking' | 'ok' | 'error';
+  geminiConfigured: boolean;
+  sessionId: string;
+  onNewSession: () => void;
+  onOpenSettings: () => void;
+  onToggleSidebar: () => void;
+  sidebarOpen: boolean;
+}
 
 export default function Navbar({
   serverStatus,
@@ -19,8 +27,7 @@ export default function Navbar({
   onNewSession,
   onOpenSettings,
   onToggleSidebar,
-  sidebarOpen
-}) {
+}: NavbarProps) {
   return (
     <header className="sticky top-0 z-30 border-b border-slate-800/80 bg-slate-950/80 backdrop-blur-md">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -35,7 +42,12 @@ export default function Navbar({
               <Menu className="w-5 h-5" />
             </button>
 
-            <div className="flex items-center space-x-2.5">
+            <motion.div 
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.3 }}
+              className="flex items-center space-x-2.5"
+            >
               <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-indigo-400 p-0.5 shadow-lg shadow-indigo-500/20 flex items-center justify-center">
                 <GraduationCap className="w-5 h-5 text-white" />
               </div>
@@ -52,13 +64,17 @@ export default function Navbar({
                   Intelligent Question Answering in Academic Document Collections
                 </p>
               </div>
-            </div>
+            </motion.div>
           </div>
 
           {/* Right: Session, Status Pills & Settings */}
           <div className="flex items-center space-x-2 sm:space-x-3">
             {/* Session Pill */}
-            <div className="hidden sm:flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-slate-900 border border-slate-800 text-xs">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="hidden sm:flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-slate-900 border border-slate-800 text-xs"
+            >
               <span className="text-slate-400">Session:</span>
               <span className="font-mono font-semibold text-indigo-300">
                 {sessionId.length > 10 ? `${sessionId.substring(0, 8)}...` : sessionId}
@@ -70,11 +86,11 @@ export default function Navbar({
               >
                 <PlusCircle className="w-3.5 h-3.5" />
               </button>
-            </div>
+            </motion.div>
 
             {/* Server status badge */}
             <div 
-              className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-full border text-xs font-medium ${
+              className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-full border text-xs font-medium transition-colors ${
                 serverStatus === 'ok'
                   ? 'bg-emerald-950/40 text-emerald-300 border-emerald-800/60'
                   : serverStatus === 'checking'
@@ -92,18 +108,18 @@ export default function Navbar({
               </span>
             </div>
 
-            {/* Gemini LLM status pill */}
+            {/* AI Engine status pill */}
             <div 
-              className={`hidden sm:flex items-center space-x-1.5 px-2.5 py-1 rounded-full border text-xs font-medium ${
+              className={`hidden sm:flex items-center space-x-1.5 px-2.5 py-1 rounded-full border text-xs font-medium transition-colors ${
                 geminiConfigured
                   ? 'bg-indigo-950/40 text-indigo-300 border-indigo-800/60'
                   : 'bg-amber-950/40 text-amber-300 border-amber-800/60'
               }`}
-              title={geminiConfigured ? 'Gemini 2.5 Flash Configured' : 'Gemini API Key Required'}
+              title={geminiConfigured ? 'AI LLM Configured' : 'AI API Key Required'}
             >
               <Cpu className="w-3.5 h-3.5" />
               <span className="font-mono text-[11px]">
-                {geminiConfigured ? 'Gemini Active' : 'Set API Key'}
+                {geminiConfigured ? 'LLM Active' : 'Set API Key'}
               </span>
             </div>
 

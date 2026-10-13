@@ -1,20 +1,32 @@
+'use client';
+
 import React from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   FileText, 
   Trash2, 
   Upload, 
-  Layers, 
   CheckCircle2, 
   Clock, 
   Plus, 
-  FileSpreadsheet, 
-  HelpCircle,
   Database,
-  Filter,
   RefreshCw,
-  Sparkles,
   BookOpen
 } from 'lucide-react';
+import { DocumentMetadata } from '@/types';
+
+interface SidebarProps {
+  documents: DocumentMetadata[];
+  selectedDocIds: string[];
+  onToggleSelectDoc: (id: string) => void;
+  onSelectAllDocs: () => void;
+  onDeleteDoc: (id: string, filename: string) => void;
+  onOpenUpload: () => void;
+  loadingDocuments: boolean;
+  sidebarOpen: boolean;
+  onCloseSidebar: () => void;
+  sessionId: string;
+}
 
 export default function Sidebar({
   documents = [],
@@ -23,13 +35,12 @@ export default function Sidebar({
   onSelectAllDocs,
   onDeleteDoc,
   onOpenUpload,
-  onLoadSamplePaper,
   loadingDocuments,
   sidebarOpen,
   onCloseSidebar,
   sessionId
-}) {
-  const formatSize = (bytes) => {
+}: SidebarProps) {
+  const formatSize = (bytes: number) => {
     if (!bytes) return '0 KB';
     if (bytes < 1024 * 1024) {
       return `${Math.round(bytes / 1024)} KB`;
@@ -40,12 +51,17 @@ export default function Sidebar({
   return (
     <>
       {/* Mobile backdrop */}
-      {sidebarOpen && (
-        <div 
-          onClick={onCloseSidebar}
-          className="fixed inset-0 z-40 bg-slate-950/80 backdrop-blur-sm lg:hidden"
-        />
-      )}
+      <AnimatePresence>
+        {sidebarOpen && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={onCloseSidebar}
+            className="fixed inset-0 z-40 bg-slate-950/80 backdrop-blur-sm lg:hidden"
+          />
+        )}
+      </AnimatePresence>
 
       {/* Sidebar container */}
       <aside className={`
@@ -71,7 +87,7 @@ export default function Sidebar({
 
           <button
             onClick={onOpenUpload}
-            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 shadow-sm shadow-indigo-600/30 transition-all"
+            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 shadow-sm shadow-indigo-600/30 transition-all cursor-pointer"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>Upload</span>
@@ -87,7 +103,7 @@ export default function Sidebar({
             {selectedDocIds.length > 0 && (
               <button
                 onClick={onSelectAllDocs}
-                className="text-[11px] text-indigo-400 hover:text-indigo-300 underline"
+                className="text-[11px] text-indigo-400 hover:text-indigo-300 underline cursor-pointer"
               >
                 Clear Filter
               </button>
@@ -117,21 +133,11 @@ export default function Sidebar({
               <div className="pt-2 space-y-2">
                 <button
                   onClick={onOpenUpload}
-                  className="w-full py-2 px-3 rounded-xl text-xs font-semibold text-indigo-300 bg-indigo-950/60 hover:bg-indigo-900/80 border border-indigo-700/50 transition-colors flex items-center justify-center space-x-1.5"
+                  className="w-full py-2 px-3 rounded-xl text-xs font-semibold text-indigo-300 bg-indigo-950/60 hover:bg-indigo-900/80 border border-indigo-700/50 transition-colors flex items-center justify-center space-x-1.5 cursor-pointer"
                 >
                   <Upload className="w-3.5 h-3.5" />
                   <span>Upload Document</span>
                 </button>
-
-                {onLoadSamplePaper && (
-                  <button
-                    onClick={onLoadSamplePaper}
-                    className="w-full py-1.5 px-3 rounded-xl text-[11px] text-slate-400 hover:text-slate-200 bg-slate-900/60 hover:bg-slate-800 border border-slate-800 transition-colors flex items-center justify-center space-x-1"
-                  >
-                    <Sparkles className="w-3 h-3 text-amber-400" />
-                    <span>Load Demo Academic Paper</span>
-                  </button>
-                )}
               </div>
             </div>
           ) : (
@@ -140,8 +146,10 @@ export default function Sidebar({
               const isPdf = doc.file_type === 'pdf' || doc.filename.toLowerCase().endsWith('.pdf');
 
               return (
-                <div
+                <motion.div
                   key={doc.document_id}
+                  initial={{ opacity: 0, y: 5 }}
+                  animate={{ opacity: 1, y: 0 }}
                   onClick={() => onToggleSelectDoc(doc.document_id)}
                   className={`group relative rounded-xl border p-3 transition-all cursor-pointer ${
                     isSelected
@@ -183,7 +191,7 @@ export default function Sidebar({
                         e.stopPropagation();
                         onDeleteDoc(doc.document_id, doc.filename);
                       }}
-                      className="opacity-0 group-hover:opacity-100 p-1 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition-all flex-shrink-0"
+                      className="opacity-0 group-hover:opacity-100 p-1 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition-all flex-shrink-0 cursor-pointer"
                       title="Delete document and vector embeddings"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -210,7 +218,7 @@ export default function Sidebar({
                       {isSelected ? 'Active Scope' : 'Click to filter'}
                     </span>
                   </div>
-                </div>
+                </motion.div>
               );
             })
           )}
@@ -221,14 +229,14 @@ export default function Sidebar({
           <div className="flex items-center justify-between">
             <span className="flex items-center gap-1.5">
               <Database className="w-3.5 h-3.5 text-indigo-400" />
-              <span>ChromaDB Vector Store</span>
+              <span>Vector Store</span>
             </span>
-            <span className="font-mono text-emerald-400 text-[10px] px-1.5 py-0.2 rounded bg-emerald-950/60 border border-emerald-800">
-              PERSISTENT
+            <span className="font-mono text-emerald-400 text-[10px] px-1.5 py-0.5 rounded bg-emerald-950/60 border border-emerald-800">
+              PGVECTOR
             </span>
           </div>
           <p className="text-[10px] text-slate-500 leading-tight">
-            Isolated collection for session <code className="text-indigo-300 font-mono">{sessionId}</code>
+            Session collection: <code className="text-indigo-300 font-mono">{sessionId}</code>
           </p>
         </div>
       </aside>

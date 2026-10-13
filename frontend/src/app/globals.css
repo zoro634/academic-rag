@@ -1,15 +1,19 @@
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-body {
-  background-color: #020617; /* slate-950 */
-  color: #f8fafc; /* slate-50 */
-  min-height: 100vh;
-  overflow-x: hidden;
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+:root {
+  color-scheme: dark;
 }
 
-/* Custom modern scrollbar */
+body {
+  background-color: #020617;
+  color: #f8fafc;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -45,14 +49,4 @@ body {
 
 .glow-indigo {
   box-shadow: 0 0 25px -5px rgba(99, 102, 241, 0.35);
-}
-
-/* Subtle animation for pulse indicator */
-@keyframes subtle-pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.85; transform: scale(1.02); }
-}
-
-.animate-subtle {
-  animation: subtle-pulse 3s infinite ease-in-out;
 }
